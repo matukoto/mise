@@ -76,7 +76,8 @@ fn handle_err(err: Report) -> eyre::Result<()> {
             return Ok(());
         }
     }
-    if cfg!(not(debug_assertions)) && log::max_level() < log::LevelFilter::Debug {
+    // if cfg!(not(debug_assertions)) && log::max_level() < log::LevelFilter::Debug {
+    if cfg!(debug_assertions) && log::max_level() < log::LevelFilter::Debug {
         display_friendly_err(err);
         exit(1);
     }
@@ -86,7 +87,44 @@ fn handle_err(err: Report) -> eyre::Result<()> {
 fn display_friendly_err(err: Report) {
     for err in err.chain() {
         error!("{err}");
+        if let Some(err) = err.downcast_ref::<eyre::Report>() {
+            err.
+        }
     }
     let msg = ui::style::edim("Run with --verbose or MISE_VERBOSE=1 for more information");
     error!("{msg}");
+}
+impl EyreHandler for Handler {
+    fn debug(
+        &self,
+        error: &(dyn Error + 'static),
+        f: &mut core::fmt::Formatter<'_>,
+    ) -> core::fmt::Result {
+        use core::fmt::Write as _;
+
+        if f.alternate() {
+            return core::fmt::Debug::fmt(error, f);
+        }
+
+        write!(f, "{}", error)?;
+
+        if let Some(cause) = error.source() {
+            write!(f, "\n\nCaused by:")?;
+            let multiple = cause.source().is_some();
+
+            for (n, error) in Chain::new(cause).enumerate() {
+                writeln!(f)?;
+                if multiple {
+                    write!(indented(f).ind(n), "{}", error)?;
+                } else {
+                    write!(indented(f), "{}", error)?;
+                }
+            }
+        }
+
+        let backtrace = &self.backtrace;
+        write!(f, "\n\nStack backtrace:\n{:?}", backtrace)?;
+
+        Ok(())
+    }
 }

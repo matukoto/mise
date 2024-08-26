@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use std::process::ExitStatus;
 
-use eyre::Report;
+use eyre::{EyreHandler, Report};
 use thiserror::Error;
 
 use crate::file::display_path;
@@ -48,5 +48,33 @@ impl Error {
                 )
             })
             .unwrap_or(false)
+    }
+}
+
+struct Handler {
+}
+
+
+impl EyreHandler for Handler {
+    fn debug(&self, error: &(dyn Error + 'static), f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if f.alternate() {
+            return fmt::Debug::fmt(error, f);
+        }
+
+        let errors = iter::successors(Some(error), |error| (*error).source());
+
+        for (ind, error) in errors.enumerate() {
+            write!(f, "\n{:>4}: {}", ind, error)?;
+        }
+
+        if let Some(backtrace) = self.backtrace.as_ref() {
+            writeln!(f, "\n\nBacktrace:\n{:?}", backtrace)?;
+        }
+
+        if let Some(msg) = self.custom_msg.as_ref() {
+            writeln!(f, "\n\n{}", msg)?;
+        }
+
+        Ok(())
     }
 }
